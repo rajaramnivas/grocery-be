@@ -12,10 +12,33 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/grocery_store')
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log('MongoDB connection error:', err));
+// MongoDB Connection – cache the promise so serverless re-invocations reuse it
+let dbPromise = null;
+function connectDB() {
+  if (!dbPromise) {
+    dbPromise = mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/grocery_store', {
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+    })
+      .then(() => console.log('MongoDB connected'))
+      .catch(err => {
+        console.log('MongoDB connection error:', err);
+        dbPromise = null; // allow retry on next request
+        throw err;
+      });
+  }
+  return dbPromise;
+}
+
+// Ensure DB is connected before any route handler runs
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(503).json({ message: 'Database connection failed. Please try again.' });
+  }
+});
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
