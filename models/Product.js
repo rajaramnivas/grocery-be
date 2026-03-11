@@ -74,7 +74,14 @@ const productSchema = new mongoose.Schema(
       // of blocking edits/creates when users don't care about SKU.
     },
     supplier: String,
-    expiryDate: Date,
+    expiryDate: {
+      type: Date,
+      default: () => {
+        const d = new Date();
+        d.setMonth(d.getMonth() + 6);
+        return d;
+      },
+    },
     isActive: {
       type: Boolean,
       default: true,
